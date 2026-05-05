@@ -6,12 +6,15 @@ import {
   Plus, Edit, Trash2, Search, X, Download, 
   Shield, Clock, CheckCircle, XCircle, Eye,
   DollarSign, Box, Layers, UserCheck, Calendar,
-  ShoppingCart, Truck, Activity, Zap, Award
+  ShoppingCart, Truck, Activity, Zap, Award,
+  RefreshCw, Filter, Printer, ChevronDown
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  AreaChart, Area
 } from "recharts";
+import { medicinesAPI, usersAPI, salesAPI } from "../lib/api";
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -23,6 +26,8 @@ export default function AdminPanel() {
   const [editingItem, setEditingItem] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Form state
   const [form, setForm] = useState({
@@ -40,21 +45,72 @@ export default function AdminPanel() {
   const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"];
 
   useEffect(() => {
-    loadData();
+    loadAllData();
   }, []);
 
-  const loadData = () => {
-    const meds = JSON.parse(localStorage.getItem("medicines") || "[]");
-    const usersData = JSON.parse(localStorage.getItem("users") || "[]");
-    const salesData = JSON.parse(localStorage.getItem("sales") || "[]");
-    const cats = JSON.parse(localStorage.getItem("categories") || "[]");
-    
-    setMedicines(meds);
-    setUsers(usersData);
-    setSales(salesData);
-    setCategories(cats);
-    
-    prepareCharts(meds, salesData);
+  const getToken = () => localStorage.getItem("token");
+
+  const loadAllData = async () => {
+    setIsLoading(true);
+    setError(null);
+    await Promise.all([
+      loadMedicines(),
+      loadUsers(),
+      loadSales(),
+      loadCategories()
+    ]);
+    setIsLoading(false);
+  };
+
+  const loadMedicines = async () => {
+    try {
+      const data = await medicinesAPI.getAll();
+      setMedicines(data);
+      return data;
+    } catch (err) {
+      console.error("Error loading medicines:", err);
+      const stored = JSON.parse(localStorage.getItem("medicines") || "[]");
+      setMedicines(stored);
+      return stored;
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const token = getToken();
+      if (token) {
+        const data = await usersAPI.getAll(token);
+        setUsers(data);
+        return data;
+      }
+    } catch (err) {
+      console.error("Error loading users:", err);
+    }
+    const stored = JSON.parse(localStorage.getItem("users") || "[]");
+    setUsers(stored);
+    return stored;
+  };
+
+  const loadSales = async () => {
+    try {
+      const token = getToken();
+      if (token) {
+        const data = await salesAPI.getAll(token);
+        setSales(data);
+        return data;
+      }
+    } catch (err) {
+      console.error("Error loading sales:", err);
+    }
+    const stored = JSON.parse(localStorage.getItem("sales") || "[]");
+    setSales(stored);
+    return stored;
+  };
+
+  const loadCategories = () => {
+    const stored = JSON.parse(localStorage.getItem("categories") || "[]");
+    setCategories(stored);
+    return stored;
   };
 
   const prepareCharts = (meds, salesData) => {
@@ -78,73 +134,139 @@ export default function AdminPanel() {
     // Stock by category pie chart
     const categoryStock = {};
     meds.forEach(med => {
-      categoryStock[med.category] = (categoryStock[med.category] || 0) + med.quantity;
+      if (med.category) {
+        categoryStock[med.category] = (categoryStock[med.category] || 0) + (med.quantity || 0);
+      }
     });
     setStockChartData(Object.entries(categoryStock).map(([name, value]) => ({ name, value })));
     
     // Monthly revenue
     const monthlyData = {};
     salesData.forEach(sale => {
-      const month = new Date(sale.date).toLocaleString('default', { month: 'short' });
-      monthlyData[month] = (monthlyData[month] || 0) + (sale.total || 0);
+      if (sale.date) {
+        const month = new Date(sale.date).toLocaleString('default', { month: 'short' });
+        monthlyData[month] = (monthlyData[month] || 0) + (sale.total || 0);
+      }
     });
     setRevenueChartData(Object.entries(monthlyData).map(([month, revenue]) => ({ month, revenue })));
     
     // Category distribution for medicines
     const categoryCount = {};
     meds.forEach(med => {
-      categoryCount[med.category] = (categoryCount[med.category] || 0) + 1;
+      if (med.category) {
+        categoryCount[med.category] = (categoryCount[med.category] || 0) + 1;
+      }
     });
     setCategoryChartData(Object.entries(categoryCount).map(([name, count]) => ({ name, count })));
   };
 
-  const handleSubmit = () => {
+  useEffect(() => {
+    if (medicines.length > 0 || sales.length > 0) {
+      prepareCharts(medicines, sales);
+    }
+  }, [medicines, sales]);
+
+  const handleSubmit = async () => {
     if (!form.name || !form.sellingPrice) {
       alert("Please fill required fields");
       return;
     }
 
-    if (editingItem) {
-      const updated = medicines.map(m => 
-        m.id === editingItem.id ? { ...form, id: m.id } : m
-      );
-      localStorage.setItem("medicines", JSON.stringify(updated));
-    } else {
-      const newMedicine = { ...form, id: Date.now() };
-      localStorage.setItem("medicines", JSON.stringify([...medicines, newMedicine]));
+    const token = getToken();
+    const medicineData = {
+      name: form.name,
+      category: form.category,
+      batchNumber: form.batchNumber,
+      manufacturer: form.manufacturer,
+      supplier: form.supplier,
+      purchasePrice: parseFloat(form.purchasePrice) || 0,
+      sellingPrice: parseFloat(form.sellingPrice),
+      quantity: parseInt(form.quantity) || 0,
+      manufactureDate: form.manufactureDate,
+      expiryDate: form.expiryDate,
+      discount: parseInt(form.discount) || 0
+    };
+
+    try {
+      if (editingItem) {
+        if (token) {
+          await medicinesAPI.update(editingItem._id || editingItem.id, medicineData, token);
+        } else {
+          const updated = medicines.map(m => 
+            (m._id || m.id) === (editingItem._id || editingItem.id) ? { ...medicineData, id: m.id, _id: m._id } : m
+          );
+          localStorage.setItem("medicines", JSON.stringify(updated));
+        }
+        alert("Medicine updated successfully!");
+      } else {
+        if (token) {
+          await medicinesAPI.create(medicineData, token);
+        } else {
+          const newMedicine = { ...medicineData, id: Date.now() };
+          localStorage.setItem("medicines", JSON.stringify([...medicines, newMedicine]));
+        }
+        alert("Medicine added successfully!");
+      }
+      await loadMedicines();
+      setShowModal(false);
+      resetForm();
+      setEditingItem(null);
+    } catch (err) {
+      alert("Error: " + err.message);
     }
-    
-    loadData();
-    setShowModal(false);
-    setEditingItem(null);
-    setForm({
-      name: "", category: "", batchNumber: "", manufacturer: "",
-      supplier: "", purchasePrice: "", sellingPrice: "", quantity: "",
-      manufactureDate: "", expiryDate: "", discount: "0"
-    });
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (confirm("Are you sure you want to delete this medicine?")) {
-      const updated = medicines.filter(m => m.id !== id);
-      localStorage.setItem("medicines", JSON.stringify(updated));
-      loadData();
+      const token = getToken();
+      try {
+        if (token) {
+          await medicinesAPI.delete(id, token);
+        } else {
+          const updated = medicines.filter(m => (m._id || m.id) !== id);
+          localStorage.setItem("medicines", JSON.stringify(updated));
+        }
+        await loadMedicines();
+        alert("Medicine deleted successfully!");
+      } catch (err) {
+        alert("Error: " + err.message);
+      }
     }
   };
 
-  const handleApproveSupplier = (userId) => {
-    const updated = users.map(u => 
-      u.id === userId ? { ...u, status: "approved" } : u
-    );
-    localStorage.setItem("users", JSON.stringify(updated));
-    loadData();
+  const handleApproveSupplier = async (userId) => {
+    const token = getToken();
+    try {
+      if (token) {
+        await usersAPI.approveSupplier(userId, token);
+      } else {
+        const updated = users.map(u => 
+          u.id === userId ? { ...u, status: "approved" } : u
+        );
+        localStorage.setItem("users", JSON.stringify(updated));
+      }
+      await loadUsers();
+      alert("Supplier approved successfully!");
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
   };
 
-  const handleDeleteUser = (userId) => {
+  const handleDeleteUser = async (userId) => {
     if (confirm("Delete this user?")) {
-      const updated = users.filter(u => u.id !== userId);
-      localStorage.setItem("users", JSON.stringify(updated));
-      loadData();
+      const token = getToken();
+      try {
+        if (token) {
+          await usersAPI.delete(userId, token);
+        } else {
+          const updated = users.filter(u => u.id !== userId);
+          localStorage.setItem("users", JSON.stringify(updated));
+        }
+        await loadUsers();
+        alert("User deleted successfully!");
+      } catch (err) {
+        alert("Error: " + err.message);
+      }
     }
   };
 
@@ -153,7 +275,7 @@ export default function AdminPanel() {
     switch(type) {
       case "sales": data = sales; filename = "sales_report.csv"; break;
       case "inventory": data = medicines; filename = "inventory_report.csv"; break;
-      case "lowstock": data = medicines.filter(m => m.quantity < 20); filename = "low_stock.csv"; break;
+      case "lowstock": data = medicines.filter(m => (m.quantity || 0) < 20); filename = "low_stock.csv"; break;
       case "expired": data = medicines.filter(m => new Date(m.expiryDate) < new Date()); filename = "expired_medicines.csv"; break;
       default: return;
     }
@@ -168,16 +290,24 @@ export default function AdminPanel() {
     URL.revokeObjectURL(url);
   };
 
+  const resetForm = () => {
+    setForm({
+      name: "", category: "", batchNumber: "", manufacturer: "",
+      supplier: "", purchasePrice: "", sellingPrice: "", quantity: "",
+      manufactureDate: "", expiryDate: "", discount: "0"
+    });
+  };
+
   const filteredMedicines = medicines.filter(m => {
-    const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          m.category.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (m.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (m.category || "").toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === "all" || m.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
   const stats = {
     totalMedicines: medicines.length,
-    lowStock: medicines.filter(m => m.quantity < 20).length,
+    lowStock: medicines.filter(m => (m.quantity || 0) < 20).length,
     expired: medicines.filter(m => new Date(m.expiryDate) < new Date()).length,
     totalSales: sales.length,
     totalRevenue: sales.reduce((sum, s) => sum + (s.total || 0), 0),
@@ -187,13 +317,26 @@ export default function AdminPanel() {
 
   const pendingSuppliers = users.filter(u => u.role === "Supplier" && u.status === "pending");
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 rounded-2xl shadow-xl p-6 text-white">
-        <div className="flex justify-between items-start">
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-2xl shadow-xl p-6 text-white">
+        <div className="flex justify-between items-start flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Welcome back, Admin! 👋</h1>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Activity className="w-7 h-7" /> Welcome back, Admin!
+            </h1>
             <p className="text-blue-100 mt-1">Here's what's happening with your pharmacy today.</p>
           </div>
           <div className="bg-white/20 rounded-full px-4 py-2 backdrop-blur-sm">
@@ -204,53 +347,53 @@ export default function AdminPanel() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border-l-4 border-blue-500 hover:shadow-xl transition">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border-l-4 border-blue-500 hover:shadow-xl transition group">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Medicines</p>
               <p className="text-3xl font-bold text-gray-800 dark:text-white mt-1">{stats.totalMedicines}</p>
               <p className="text-xs text-green-600 mt-2">+12% this month</p>
             </div>
-            <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-2xl">
+            <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-2xl group-hover:scale-110 transition">
               <Package className="w-8 h-8 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border-l-4 border-yellow-500 hover:shadow-xl transition">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border-l-4 border-yellow-500 hover:shadow-xl transition group">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Low Stock Alert</p>
               <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{stats.lowStock}</p>
               <p className="text-xs text-red-600 mt-2">Need restock!</p>
             </div>
-            <div className="bg-yellow-100 dark:bg-yellow-900/30 p-3 rounded-2xl">
+            <div className="bg-yellow-100 dark:bg-yellow-900/30 p-3 rounded-2xl group-hover:scale-110 transition">
               <AlertTriangle className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border-l-4 border-green-500 hover:shadow-xl transition">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border-l-4 border-green-500 hover:shadow-xl transition group">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Total Revenue</p>
               <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">${stats.totalRevenue.toFixed(2)}</p>
               <p className="text-xs text-green-600 mt-2">+23% vs last month</p>
             </div>
-            <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-2xl">
+            <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-2xl group-hover:scale-110 transition">
               <DollarSign className="w-8 h-8 text-green-600 dark:text-green-400" />
             </div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border-l-4 border-purple-500 hover:shadow-xl transition">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-5 border-l-4 border-purple-500 hover:shadow-xl transition group">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Pending Approvals</p>
               <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-1">{stats.pendingSuppliers}</p>
               <p className="text-xs text-purple-600 mt-2">Suppliers waiting</p>
             </div>
-            <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-2xl">
+            <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-2xl group-hover:scale-110 transition">
               <UserCheck className="w-8 h-8 text-purple-600 dark:text-purple-400" />
             </div>
           </div>
@@ -259,7 +402,7 @@ export default function AdminPanel() {
 
       {/* Pending Approvals Banner */}
       {pendingSuppliers.length > 0 && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-xl p-4 border border-amber-200 dark:border-amber-800 animate-pulse">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <div className="bg-amber-100 dark:bg-amber-900/50 p-2 rounded-full">
@@ -278,36 +421,44 @@ export default function AdminPanel() {
       )}
 
       {/* Tabs */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg">
-        <div className="border-b border-gray-200 dark:border-gray-700 px-4">
-          <div className="flex flex-wrap gap-1">
-            {[
-              { id: "overview", label: "Dashboard", icon: Activity },
-              { id: "medicines", label: "Medicines", icon: Package },
-              { id: "users", label: "Users", icon: Users },
-              { id: "reports", label: "Reports", icon: FileText },
-              { id: "categories", label: "Categories", icon: Layers }
-            ].map(tab => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 py-3 px-5 font-medium transition-all duration-200 rounded-t-lg ${
-                    isActive
-                      ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 bg-blue-50 dark:bg-blue-900/20"
-                      : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                  }`}
-                >
-                  <Icon size={18} />
-                  <span>{tab.label}</span>
-                  {isActive && (
-                    <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
-                  )}
-                </button>
-              );
-            })}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+        <div className="border-b border-gray-200 dark:border-gray-700 px-4 overflow-x-auto">
+          <div className="flex flex-nowrap gap-1">
+            <button
+              onClick={() => setActiveTab("overview")}
+              className={`flex items-center gap-2 py-3 px-5 font-medium transition-all duration-200 rounded-t-lg whitespace-nowrap ${activeTab === "overview" ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 bg-blue-50 dark:bg-blue-900/20" : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"}`}
+            >
+              <Activity size={18} /> Dashboard
+              {activeTab === "overview" && <span className="w-1.5 h-1.5 bg-blue-600 rounded-full"></span>}
+            </button>
+            <button
+              onClick={() => setActiveTab("medicines")}
+              className={`flex items-center gap-2 py-3 px-5 font-medium transition-all duration-200 rounded-t-lg whitespace-nowrap ${activeTab === "medicines" ? "text-green-600 dark:text-green-400 border-b-2 border-green-600 bg-green-50 dark:bg-green-900/20" : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"}`}
+            >
+              <Package size={18} /> Medicines
+              {activeTab === "medicines" && <span className="w-1.5 h-1.5 bg-green-600 rounded-full"></span>}
+            </button>
+            <button
+              onClick={() => setActiveTab("users")}
+              className={`flex items-center gap-2 py-3 px-5 font-medium transition-all duration-200 rounded-t-lg whitespace-nowrap ${activeTab === "users" ? "text-purple-600 dark:text-purple-400 border-b-2 border-purple-600 bg-purple-50 dark:bg-purple-900/20" : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"}`}
+            >
+              <Users size={18} /> Users
+              {activeTab === "users" && <span className="w-1.5 h-1.5 bg-purple-600 rounded-full"></span>}
+            </button>
+            <button
+              onClick={() => setActiveTab("reports")}
+              className={`flex items-center gap-2 py-3 px-5 font-medium transition-all duration-200 rounded-t-lg whitespace-nowrap ${activeTab === "reports" ? "text-orange-600 dark:text-orange-400 border-b-2 border-orange-600 bg-orange-50 dark:bg-orange-900/20" : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"}`}
+            >
+              <FileText size={18} /> Reports
+              {activeTab === "reports" && <span className="w-1.5 h-1.5 bg-orange-600 rounded-full"></span>}
+            </button>
+            <button
+              onClick={() => setActiveTab("categories")}
+              className={`flex items-center gap-2 py-3 px-5 font-medium transition-all duration-200 rounded-t-lg whitespace-nowrap ${activeTab === "categories" ? "text-pink-600 dark:text-pink-400 border-b-2 border-pink-600 bg-pink-50 dark:bg-pink-900/20" : "text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"}`}
+            >
+              <Layers size={18} /> Categories
+              {activeTab === "categories" && <span className="w-1.5 h-1.5 bg-pink-600 rounded-full"></span>}
+            </button>
           </div>
         </div>
 
@@ -315,10 +466,8 @@ export default function AdminPanel() {
           {/* Dashboard/Overview Tab */}
           {activeTab === "overview" && (
             <div className="space-y-6">
-              {/* Charts Row 1 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Sales Trend Chart */}
-                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4">
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/50 dark:to-gray-800/50 rounded-xl p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
                       <TrendingUp size={18} className="text-blue-500" />
@@ -327,18 +476,17 @@ export default function AdminPanel() {
                     <span className="text-xs text-gray-400">Daily revenue</span>
                   </div>
                   <ResponsiveContainer width="100%" height={280}>
-                    <LineChart data={salesChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.2} />
+                    <AreaChart data={salesChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.1} />
                       <XAxis dataKey="date" stroke="#6b7280" />
                       <YAxis stroke="#6b7280" />
                       <Tooltip contentStyle={{ backgroundColor: "#1f2937", borderRadius: "8px", border: "none" }} />
-                      <Line type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={2} dot={{ fill: "#3b82f6", r: 4 }} />
-                    </LineChart>
+                      <Area type="monotone" dataKey="sales" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
 
-                {/* Stock Distribution Pie Chart */}
-                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4">
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/50 dark:to-gray-800/50 rounded-xl p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
                       <Package size={18} className="text-green-500" />
@@ -360,10 +508,8 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              {/* Charts Row 2 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Monthly Revenue Chart */}
-                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4">
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/50 dark:to-gray-800/50 rounded-xl p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
                       <DollarSign size={18} className="text-green-500" />
@@ -373,7 +519,7 @@ export default function AdminPanel() {
                   </div>
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={revenueChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.2} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.1} />
                       <XAxis dataKey="month" stroke="#6b7280" />
                       <YAxis stroke="#6b7280" />
                       <Tooltip contentStyle={{ backgroundColor: "#1f2937", borderRadius: "8px", border: "none" }} />
@@ -382,8 +528,7 @@ export default function AdminPanel() {
                   </ResponsiveContainer>
                 </div>
 
-                {/* Category Distribution Chart */}
-                <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4">
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/50 dark:to-gray-800/50 rounded-xl p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
                       <Layers size={18} className="text-purple-500" />
@@ -393,7 +538,7 @@ export default function AdminPanel() {
                   </div>
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart layout="vertical" data={categoryChartData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.2} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" strokeOpacity={0.1} />
                       <XAxis type="number" stroke="#6b7280" />
                       <YAxis type="category" dataKey="name" width={80} stroke="#6b7280" />
                       <Tooltip contentStyle={{ backgroundColor: "#1f2937", borderRadius: "8px", border: "none" }} />
@@ -404,13 +549,13 @@ export default function AdminPanel() {
               </div>
 
               {/* Recent Sales */}
-              <div className="bg-gray-50 dark:bg-gray-900/50 rounded-xl p-4">
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900/50 dark:to-gray-800/50 rounded-xl p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold text-gray-800 dark:text-white flex items-center gap-2">
                     <ShoppingCart size={18} className="text-blue-500" />
                     Recent Transactions
                   </h3>
-                  <button className="text-blue-600 text-sm hover:underline">View All</button>
+                  <button className="text-blue-600 text-sm hover:underline flex items-center gap-1"><Printer size={14} /> Print</button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -424,15 +569,20 @@ export default function AdminPanel() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sales.slice(-5).reverse().map(sale => (
-                        <tr key={sale.id} className="border-b border-gray-100 dark:border-gray-800">
-                          <td className="px-3 py-3 text-sm font-mono">{sale.invoiceNo}</td>
-                          <td className="px-3 py-3 text-sm">{new Date(sale.date).toLocaleDateString()}</td>
+                      {sales.slice(-5).reverse().map((sale, idx) => (
+                        <tr key={idx} className="border-b border-gray-100 dark:border-gray-800 hover:bg-white/50 transition">
+                          <td className="px-3 py-3 text-sm font-mono">{sale.invoiceNo || "N/A"}</td>
+                          <td className="px-3 py-3 text-sm">{sale.date ? new Date(sale.date).toLocaleDateString() : "N/A"}</td>
                           <td className="px-3 py-3 text-sm">{sale.customerName || sale.customer || "Walk-in"}</td>
                           <td className="px-3 py-3 text-sm font-semibold text-green-600">${(sale.total || 0).toFixed(2)}</td>
                           <td className="px-3 py-3"><span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs">Completed</span></td>
                         </tr>
                       ))}
+                      {sales.length === 0 && (
+                        <tr>
+                          <td colSpan="5" className="text-center py-8 text-gray-500">No transactions yet</td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -465,7 +615,7 @@ export default function AdminPanel() {
                   {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
                 <button
-                  onClick={() => { setEditingItem(null); setForm({ name: "", category: "", batchNumber: "", manufacturer: "", supplier: "", purchasePrice: "", sellingPrice: "", quantity: "", manufactureDate: "", expiryDate: "", discount: "0" }); setShowModal(true); }}
+                  onClick={() => { setEditingItem(null); resetForm(); setShowModal(true); }}
                   className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-5 py-2 rounded-xl hover:from-blue-600 hover:to-blue-700 transition flex items-center gap-2 shadow-md"
                 >
                   <Plus size={18} /> Add Medicine
@@ -487,21 +637,26 @@ export default function AdminPanel() {
                   </thead>
                   <tbody>
                     {filteredMedicines.map(med => (
-                      <tr key={med.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
+                      <tr key={med._id || med.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900/30 transition">
                         <td className="px-4 py-3 font-medium">{med.name}</td>
                         <td className="px-4 py-3"><span className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full text-xs">{med.category}</span></td>
                         <td className="px-4 py-3 text-sm">{med.batchNumber}</td>
-                        <td className={`px-4 py-3 font-semibold ${med.quantity < 20 ? "text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-full text-center w-16" : ""}`}>{med.quantity}</td>
+                        <td className={`px-4 py-3 font-semibold ${(med.quantity || 0) < 20 ? "text-red-600 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-full w-16 text-center" : ""}`}>{med.quantity}</td>
                         <td className="px-4 py-3 font-semibold text-green-600">${med.sellingPrice}</td>
                         <td className={`px-4 py-3 text-sm ${new Date(med.expiryDate) < new Date() ? "text-red-600 line-through" : ""}`}>{med.expiryDate}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
                             <button onClick={() => { setEditingItem(med); setForm(med); setShowModal(true); }} className="text-blue-600 hover:text-blue-800 p-1"><Edit size={18} /></button>
-                            <button onClick={() => handleDelete(med.id)} className="text-red-600 hover:text-red-800 p-1"><Trash2 size={18} /></button>
+                            <button onClick={() => handleDelete(med._id || med.id)} className="text-red-600 hover:text-red-800 p-1"><Trash2 size={18} /></button>
                           </div>
                         </td>
                       </tr>
                     ))}
+                    {filteredMedicines.length === 0 && (
+                      <tr>
+                        <td colSpan="7" className="text-center py-8 text-gray-500">No medicines found</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -530,9 +685,9 @@ export default function AdminPanel() {
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4 mb-6">
                   <h3 className="font-semibold text-yellow-800 dark:text-yellow-400 mb-3">Pending Approvals</h3>
                   {pendingSuppliers.map(sup => (
-                    <div key={sup.id} className="flex justify-between items-center p-3 bg-white dark:bg-gray-800 rounded-lg mb-2">
+                    <div key={sup._id || sup.id} className="flex justify-between items-center p-3 bg-white dark:bg-gray-800 rounded-lg mb-2">
                       <div><p className="font-semibold">{sup.name}</p><p className="text-sm text-gray-500">{sup.email}</p></div>
-                      <button onClick={() => handleApproveSupplier(sup.id)} className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><CheckCircle size={16} /> Approve</button>
+                      <button onClick={() => handleApproveSupplier(sup._id || sup.id)} className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 transition"><CheckCircle size={16} /> Approve</button>
                     </div>
                   ))}
                 </div>
@@ -552,13 +707,13 @@ export default function AdminPanel() {
                   </thead>
                   <tbody>
                     {users.map(u => (
-                      <tr key={u.id} className="border-b border-gray-100 dark:border-gray-800">
+                      <tr key={u._id || u.id} className="border-b border-gray-100 dark:border-gray-800">
                         <td className="px-4 py-3 font-medium">{u.name}</td>
                         <td className="px-4 py-3">{u.email}</td>
                         <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs ${u.role === "Admin" ? "bg-purple-100 text-purple-700" : u.role === "Pharmacist" ? "bg-blue-100 text-blue-700" : u.role === "Supplier" ? "bg-orange-100 text-orange-700" : "bg-green-100 text-green-700"}`}>{u.role}</span></td>
                         <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs ${u.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{u.status || "approved"}</span></td>
-                        <td className="px-4 py-3 text-sm">{u.id ? new Date(u.id).toLocaleDateString() : "N/A"}</td>
-                        <td className="px-4 py-3">{u.email !== "admin@pharmacy.com" && <button onClick={() => handleDeleteUser(u.id)} className="text-red-600 hover:text-red-800"><Trash2 size={18} /></button>}</td>
+                        <td className="px-4 py-3 text-sm">{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : u.id ? new Date(u.id).toLocaleDateString() : "N/A"}</td>
+                        <td className="px-4 py-3">{u.email !== "admin@pharmacy.com" && <button onClick={() => handleDeleteUser(u._id || u.id)} className="text-red-600 hover:text-red-800"><Trash2 size={18} /></button>}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -579,7 +734,7 @@ export default function AdminPanel() {
                 ].map(r => {
                   const Icon = r.icon;
                   return (
-                    <div key={r.id} className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-md hover:shadow-xl transition">
+                    <div key={r.id} className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-md hover:shadow-xl transition transform hover:-translate-y-1">
                       <div className={`w-12 h-12 rounded-xl bg-${r.color}-100 dark:bg-${r.color}-900/30 flex items-center justify-center mb-3`}>
                         <Icon className={`w-6 h-6 text-${r.color}-600 dark:text-${r.color}-400`} />
                       </div>
@@ -594,13 +749,13 @@ export default function AdminPanel() {
               </div>
 
               {/* Quick Stats */}
-              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-6 text-white">
-                <h3 className="font-semibold text-lg mb-3">Report Summary</h3>
+              <div className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-xl p-6 text-white">
+                <h3 className="font-semibold text-lg mb-3 flex items-center gap-2"><Activity size={20} /> Report Summary</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div><p className="text-sm opacity-80">Total Sales</p><p className="text-2xl font-bold">{stats.totalSales}</p></div>
                   <div><p className="text-sm opacity-80">Revenue</p><p className="text-2xl font-bold">${stats.totalRevenue.toFixed(2)}</p></div>
-                  <div><p className="text-sm opacity-80">Total Stock</p><p className="text-2xl font-bold">{medicines.reduce((sum, m) => sum + m.quantity, 0)}</p></div>
-                  <div><p className="text-sm opacity-80">Avg. Price</p><p className="text-2xl font-bold">${(medicines.reduce((sum, m) => sum + m.sellingPrice, 0) / medicines.length || 0).toFixed(2)}</p></div>
+                  <div><p className="text-sm opacity-80">Total Stock</p><p className="text-2xl font-bold">{medicines.reduce((sum, m) => sum + (m.quantity || 0), 0)}</p></div>
+                  <div><p className="text-sm opacity-80">Avg. Price</p><p className="text-2xl font-bold">${(medicines.reduce((sum, m) => sum + (m.sellingPrice || 0), 0) / (medicines.length || 1)).toFixed(2)}</p></div>
                 </div>
               </div>
             </div>
@@ -609,13 +764,16 @@ export default function AdminPanel() {
           {/* Categories Tab */}
           {activeTab === "categories" && (
             <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-3">
                 {categories.map((cat, idx) => (
-                  <div key={idx} className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 px-4 py-2 rounded-full flex items-center gap-2 shadow-sm">
+                  <div key={idx} className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 px-5 py-2 rounded-full flex items-center gap-2 shadow-md hover:shadow-lg transition">
                     <Layers size={14} className="text-blue-500" />
-                    <span>{cat}</span>
+                    <span className="font-medium">{cat}</span>
                   </div>
                 ))}
+                {categories.length === 0 && (
+                  <p className="text-gray-500">No categories added yet</p>
+                )}
               </div>
             </div>
           )}
@@ -624,13 +782,13 @@ export default function AdminPanel() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 animate-fadeIn">
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-5 flex justify-between items-center">
               <h3 className="text-xl font-bold text-gray-800 dark:text-white">
                 {editingItem ? "✏️ Edit Medicine" : "➕ Add New Medicine"}
               </h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 transition"><X size={24} /></button>
             </div>
             <div className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
