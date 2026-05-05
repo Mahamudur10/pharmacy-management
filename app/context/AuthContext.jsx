@@ -16,16 +16,14 @@ export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Only run on client side
-    if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem("user");
-      if (storedUser && storedUser !== "undefined") {
-        try {
-          setUser(JSON.parse(storedUser));
-        } catch (e) {
-          console.error("Failed to parse user:", e);
-          localStorage.removeItem("user");
-        }
+    // Load user from localStorage
+    const storedUser = localStorage.getItem("user");
+    if (storedUser && storedUser !== "undefined") {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error("Failed to parse user:", e);
+        localStorage.removeItem("user");
       }
     }
 
@@ -35,7 +33,8 @@ export default function AuthProvider({ children }) {
       const defaultUsers = [
         { id: 1, name: "Admin User", email: "admin@pharmacy.com", password: "admin123", role: "Admin", status: "approved" },
         { id: 2, name: "Pharmacist User", email: "pharmacist@pharmacy.com", password: "pharm123", role: "Pharmacist", status: "approved" },
-        { id: 3, name: "Customer User", email: "customer@pharmacy.com", password: "customer123", role: "Customer", status: "approved" }
+        { id: 3, name: "Customer User", email: "customer@pharmacy.com", password: "customer123", role: "Customer", status: "approved" },
+        { id: 4, name: "Supplier User", email: "supplier@pharmacy.com", password: "supplier123", role: "Supplier", status: "approved" }
       ];
       localStorage.setItem("users", JSON.stringify(defaultUsers));
       
@@ -48,6 +47,9 @@ export default function AuthProvider({ children }) {
       localStorage.setItem("sales", JSON.stringify([]));
       localStorage.setItem("categories", JSON.stringify(["Pain Relief", "Gastric", "Antibiotic", "Vitamin", "First Aid"]));
       localStorage.setItem("supplierOrders", JSON.stringify([]));
+      localStorage.setItem("suppliedMedicines", JSON.stringify([]));
+      localStorage.setItem("customerPurchases", JSON.stringify([]));
+      localStorage.setItem("notifications", JSON.stringify([]));
     }
   }, []);
 
@@ -62,10 +64,34 @@ export default function AuthProvider({ children }) {
       email, 
       password, 
       role, 
-      status: role === "Supplier" ? "pending" : "approved" 
+      status: role === "Supplier" ? "pending" : "approved",
+      createdAt: new Date().toISOString()
     };
     users.push(newUser);
     localStorage.setItem("users", JSON.stringify(users));
+
+    // Add notification for Admin if Supplier signs up
+    if (role === "Supplier") {
+      const admin = users.find(u => u.role === "Admin");
+      if (admin) {
+        const notifications = JSON.parse(localStorage.getItem("notifications") || "[]");
+        notifications.push({
+          id: Date.now(),
+          userId: admin.id,
+          forAll: false,
+          type: "pending_supplier",
+          title: "👤 New Supplier Registration",
+          message: `${name} (${email}) has registered as a supplier. Please approve.`,
+          supplierId: newUser.id,
+          status: "active",
+          read: false,
+          createdAt: new Date().toISOString(),
+          icon: "UserCheck",
+          color: "purple"
+        });
+        localStorage.setItem("notifications", JSON.stringify(notifications));
+      }
+    }
 
     if (newUser.status === "approved") {
       const { password, ...userWithoutPass } = newUser;
@@ -100,14 +126,45 @@ export default function AuthProvider({ children }) {
       u.id === userId ? { ...u, status: "approved" } : u
     );
     localStorage.setItem("users", JSON.stringify(updatedUsers));
+    
+    // Notify the supplier
+    const supplier = users.find(u => u.id === userId);
+    if (supplier) {
+      const notifications = JSON.parse(localStorage.getItem("notifications") || "[]");
+      notifications.push({
+        id: Date.now(),
+        userId: userId,
+        forAll: false,
+        type: "approved",
+        title: "✅ Account Approved",
+        message: "Your supplier account has been approved! You can now login.",
+        status: "active",
+        read: false,
+        createdAt: new Date().toISOString(),
+        icon: "CheckCircle",
+        color: "green"
+      });
+      localStorage.setItem("notifications", JSON.stringify(notifications));
+    }
+    
+    return updatedUsers;
   };
 
   const getAllUsers = () => {
     return JSON.parse(localStorage.getItem("users") || "[]");
   };
 
+  const value = {
+    user,
+    signup,
+    login,
+    logout,
+    approveSupplier,
+    getAllUsers
+  };
+
   return (
-    <AuthContext.Provider value={{ user, signup, login, logout, approveSupplier, getAllUsers }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
