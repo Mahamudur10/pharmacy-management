@@ -1,43 +1,160 @@
 @import "tailwindcss";
 
 @theme {
+  /* Light mode colors */
   --color-gray-50: #f9fafb;
   --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
   --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
   --color-gray-500: #6b7280;
   --color-gray-600: #4b5563;
   --color-gray-700: #374151;
   --color-gray-800: #1f2937;
-  --color-blue-500: #3b82f6;
-  --color-blue-600: #2563eb;
-  --color-blue-700: #1d4ed8;
-  --color-green-500: #10b981;
-  --color-green-600: #059669;
-  --color-green-700: #047857;
-  --color-red-500: #ef4444;
-  --color-red-600: #dc2626;
-  --color-red-700: #b91c1c;
-  --color-yellow-500: #f59e0b;
-  --color-yellow-600: #d97706;
-  --color-purple-600: #9333ea;
-  --color-white: #ffffff;
-  --color-black: #000000;
+  --color-gray-900: #111827;
+  --color-gray-950: #030712;
 }
 
+/* Base styles */
 body {
   background-color: var(--color-gray-50);
+  color: var(--color-gray-900);
 }
 
+/* Dark mode */
+.dark body {
+  background-color: var(--color-gray-950);
+  color: var(--color-gray-100);
+}
+
+/* Input styles - Light mode */
+input, textarea, select {
+  background-color: white;
+  color: #111827;
+  border: 1px solid #d1d5db;
+}
+
+/* Input styles - Dark mode */
+.dark input, 
+.dark textarea, 
+.dark select {
+  background-color: #1f2937;
+  color: #f9fafb;
+  border: 1px solid #374151;
+}
+
+/* Input placeholder */
+input::placeholder, 
+textarea::placeholder {
+  color: #9ca3af;
+}
+
+.dark input::placeholder, 
+.dark textarea::placeholder {
+  color: #6b7280;
+}
+
+/* Card styles */
+.card {
+  background-color: white;
+  color: #111827;
+}
+
+.dark .card {
+  background-color: #1f2937;
+  color: #f9fafb;
+}
+
+/* Table styles */
+table {
+  background-color: white;
+  color: #111827;
+}
+
+.dark table {
+  background-color: #1f2937;
+  color: #f9fafb;
+}
+
+th {
+  background-color: #f3f4f6;
+  color: #111827;
+}
+
+.dark th {
+  background-color: #374151;
+  color: #f9fafb;
+}
+
+td {
+  border-top: 1px solid #e5e7eb;
+}
+
+.dark td {
+  border-top: 1px solid #374151;
+}
+
+/* Button styles */
 .btn-primary {
-  background-color: var(--color-blue-600);
-  color: var(--color-white);
+  background-color: #2563eb;
+  color: white;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
 }
 
-.input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-gray-300);
+.btn-primary:hover {
+  background-color: #1d4ed8;
+}
+
+.btn-danger {
+  background-color: #dc2626;
+  color: white;
+  padding: 0.5rem 1rem;
   border-radius: 0.5rem;
+}
+
+.btn-danger:hover {
+  background-color: #b91c1c;
+}
+
+.btn-success {
+  background-color: #059669;
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+}
+
+.btn-success:hover {
+  background-color: #047857;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
 }
