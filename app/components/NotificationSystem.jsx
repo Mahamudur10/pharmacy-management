@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Package, AlertTriangle, UserCheck, ShoppingCart, Truck, CheckCircle, X } from "lucide-react";
+import { Bell, AlertTriangle, Package, Truck, CheckCircle, ShoppingCart, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import Link from "next/link";
 
 export default function NotificationSystem() {
   const { user } = useAuth();
@@ -13,7 +14,6 @@ export default function NotificationSystem() {
   useEffect(() => {
     if (!user) return;
     loadNotifications();
-    
     const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
   }, [user]);
@@ -21,19 +21,18 @@ export default function NotificationSystem() {
   const loadNotifications = () => {
     const medicines = JSON.parse(localStorage.getItem("medicines") || "[]");
     const users = JSON.parse(localStorage.getItem("users") || "[]");
-    const sales = JSON.parse(localStorage.getItem("sales") || "[]");
     const supplierOrders = JSON.parse(localStorage.getItem("supplierOrders") || "[]");
     const customerPurchases = JSON.parse(localStorage.getItem("customerPurchases") || "[]");
     const existingNotifs = JSON.parse(localStorage.getItem("notifications") || "[]");
     
     let newNotifications = [];
 
-    // ========== ADMIN NOTIFICATIONS ==========
+    // ========== 🟢 ADMIN NOTIFICATIONS ==========
     if (user?.role === "Admin") {
       // Low Stock Alerts
       medicines.forEach(med => {
-        if (med.quantity < 20) {
-          const existing = existingNotifs.find(n => n.type === "low_stock" && n.medicineId === med.id && n.userId === user.id);
+        if ((med.quantity || 0) < 20) {
+          const existing = existingNotifs.find(n => n.type === "low_stock" && n.medicineId === med.id);
           if (!existing) {
             newNotifications.push({
               id: Date.now() + med.id,
@@ -54,7 +53,7 @@ export default function NotificationSystem() {
       medicines.forEach(med => {
         const daysLeft = Math.ceil((new Date(med.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
         if (daysLeft <= 60 && daysLeft > 0) {
-          const existing = existingNotifs.find(n => n.type === "expiry" && n.medicineId === med.id && n.userId === user.id);
+          const existing = existingNotifs.find(n => n.type === "expiry" && n.medicineId === med.id);
           if (!existing) {
             newNotifications.push({
               id: Date.now() + med.id + 100,
@@ -74,7 +73,7 @@ export default function NotificationSystem() {
       // New Supplier Registration
       const pendingSuppliers = users.filter(u => u.role === "Supplier" && u.status === "pending");
       pendingSuppliers.forEach(sup => {
-        const existing = existingNotifs.find(n => n.type === "new_supplier" && n.userId === sup.id && n.userId === user.id);
+        const existing = existingNotifs.find(n => n.type === "new_supplier" && n.supplierId === sup.id);
         if (!existing) {
           newNotifications.push({
             id: Date.now() + sup.id + 200,
@@ -89,35 +88,14 @@ export default function NotificationSystem() {
           });
         }
       });
-
-      // Daily Sales Summary
-      const todaySales = sales.filter(s => new Date(s.date).toDateString() === new Date().toDateString());
-      if (todaySales.length > 0) {
-        const totalToday = todaySales.reduce((sum, s) => sum + (s.total || 0), 0);
-        const existing = existingNotifs.find(n => n.type === "daily_sales" && 
-          new Date(n.createdAt).toDateString() === new Date().toDateString() && n.userId === user.id);
-        if (!existing) {
-          newNotifications.push({
-            id: Date.now() + 300,
-            userId: user.id,
-            type: "daily_sales",
-            title: "💰 Daily Sales Summary",
-            message: `${todaySales.length} transactions today. Total: TK ${totalToday.toFixed(2)}`,
-            icon: "ShoppingCart",
-            color: "green",
-            read: false,
-            createdAt: new Date().toISOString()
-          });
-        }
-      }
     }
 
-    // ========== PHARMACIST NOTIFICATIONS ==========
-    if (user?.role === "Pharmacist") {
-      // Low Stock Alerts
+    // ========== 🔵 PHARMACIST NOTIFICATIONS ==========
+    else if (user?.role === "Pharmacist") {
+      // Only Low Stock Alerts
       medicines.forEach(med => {
-        if (med.quantity < 20) {
-          const existing = existingNotifs.find(n => n.type === "low_stock" && n.medicineId === med.id && n.userId === user.id);
+        if ((med.quantity || 0) < 20) {
+          const existing = existingNotifs.find(n => n.type === "low_stock" && n.medicineId === med.id);
           if (!existing) {
             newNotifications.push({
               id: Date.now() + med.id,
@@ -134,11 +112,11 @@ export default function NotificationSystem() {
         }
       });
 
-      // Expiry Alerts
+      // Only Expiry Alerts
       medicines.forEach(med => {
         const daysLeft = Math.ceil((new Date(med.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
         if (daysLeft <= 60 && daysLeft > 0) {
-          const existing = existingNotifs.find(n => n.type === "expiry" && n.medicineId === med.id && n.userId === user.id);
+          const existing = existingNotifs.find(n => n.type === "expiry" && n.medicineId === med.id);
           if (!existing) {
             newNotifications.push({
               id: Date.now() + med.id + 100,
@@ -156,80 +134,83 @@ export default function NotificationSystem() {
       });
     }
 
-    // ========== SUPPLIER NOTIFICATIONS ==========
-    if (user?.role === "Supplier") {
+    // ========== 🟠 SUPPLIER NOTIFICATIONS ==========
+    else if (user?.role === "Supplier") {
       // New Orders
-      const newOrders = supplierOrders.filter(o => o.status === "Pending");
-      newOrders.forEach(order => {
-        const existing = existingNotifs.find(n => n.type === "new_order" && n.orderId === order.id && n.userId === user.id);
-        if (!existing) {
-          newNotifications.push({
-            id: Date.now() + order.id + 400,
-            userId: user.id,
-            type: "new_order",
-            title: "🆕 New Order Received",
-            message: `Order ${order.orderId} for ${order.medicineName} (${order.quantity} units)`,
-            icon: "Truck",
-            color: "blue",
-            read: false,
-            createdAt: new Date().toISOString()
-          });
+      const myOrders = supplierOrders.filter(o => o.supplierName === user.name);
+      myOrders.forEach(order => {
+        if (order.status === "Pending") {
+          const existing = existingNotifs.find(n => n.type === "new_order" && n.orderId === order.id);
+          if (!existing) {
+            newNotifications.push({
+              id: Date.now() + order.id + 400,
+              userId: user.id,
+              type: "new_order",
+              title: "🆕 New Order Received",
+              message: `Order ${order.orderId} for ${order.medicineName} (${order.quantity} units)`,
+              icon: "Truck",
+              color: "blue",
+              read: false,
+              createdAt: new Date().toISOString()
+            });
+          }
         }
       });
 
-      // Order Status Updates
-      const shippedOrders = supplierOrders.filter(o => o.status === "Shipped");
-      shippedOrders.forEach(order => {
-        const existing = existingNotifs.find(n => n.type === "order_shipped" && n.orderId === order.id && n.userId === user.id);
-        if (!existing) {
-          newNotifications.push({
-            id: Date.now() + order.id + 500,
-            userId: user.id,
-            type: "order_shipped",
-            title: "🚚 Order Shipped",
-            message: `Order ${order.orderId} has been shipped.`,
-            icon: "Truck",
-            color: "blue",
-            read: false,
-            createdAt: new Date().toISOString()
-          });
+      // Order Shipped
+      myOrders.forEach(order => {
+        if (order.status === "Shipped") {
+          const existing = existingNotifs.find(n => n.type === "order_shipped" && n.orderId === order.id);
+          if (!existing) {
+            newNotifications.push({
+              id: Date.now() + order.id + 500,
+              userId: user.id,
+              type: "order_shipped",
+              title: "🚚 Order Shipped",
+              message: `Order ${order.orderId} has been shipped.`,
+              icon: "Truck",
+              color: "blue",
+              read: false,
+              createdAt: new Date().toISOString()
+            });
+          }
         }
       });
 
-      const deliveredOrders = supplierOrders.filter(o => o.status === "Delivered");
-      deliveredOrders.forEach(order => {
-        const existing = existingNotifs.find(n => n.type === "order_delivered" && n.orderId === order.id && n.userId === user.id);
-        if (!existing) {
-          newNotifications.push({
-            id: Date.now() + order.id + 600,
-            userId: user.id,
-            type: "order_delivered",
-            title: "✅ Order Delivered",
-            message: `Order ${order.orderId} has been delivered successfully.`,
-            icon: "CheckCircle",
-            color: "green",
-            read: false,
-            createdAt: new Date().toISOString()
-          });
+      // Order Delivered
+      myOrders.forEach(order => {
+        if (order.status === "Delivered") {
+          const existing = existingNotifs.find(n => n.type === "order_delivered" && n.orderId === order.id);
+          if (!existing) {
+            newNotifications.push({
+              id: Date.now() + order.id + 600,
+              userId: user.id,
+              type: "order_delivered",
+              title: "✅ Order Delivered",
+              message: `Order ${order.orderId} has been delivered.`,
+              icon: "CheckCircle",
+              color: "green",
+              read: false,
+              createdAt: new Date().toISOString()
+            });
+          }
         }
       });
     }
 
-    // ========== CUSTOMER NOTIFICATIONS ==========
-    if (user?.role === "Customer") {
+    // ========== 🟢 CUSTOMER NOTIFICATIONS ==========
+    else if (user?.role === "Customer") {
       // Order Confirmation
-      const recentPurchases = customerPurchases.filter(p => 
-        p.customerName === user.name && new Date(p.date).toDateString() === new Date().toDateString()
-      );
-      recentPurchases.forEach(purchase => {
-        const existing = existingNotifs.find(n => n.type === "order_confirmation" && n.orderId === purchase.id && n.userId === user.id);
+      const myPurchases = customerPurchases.filter(p => p.customerName === user.name);
+      myPurchases.forEach(purchase => {
+        const existing = existingNotifs.find(n => n.type === "order_confirmation" && n.orderId === purchase.id);
         if (!existing) {
           newNotifications.push({
             id: Date.now() + purchase.id + 700,
             userId: user.id,
             type: "order_confirmation",
             title: "✅ Order Confirmed",
-            message: `Your order ${purchase.invoiceNo} has been confirmed. Total: TK ${purchase.total.toFixed(2)}`,
+            message: `Your order ${purchase.invoiceNo} has been confirmed. Total: TK ${(purchase.total || 0).toFixed(2)}`,
             icon: "ShoppingCart",
             color: "green",
             read: false,
@@ -237,22 +218,6 @@ export default function NotificationSystem() {
           });
         }
       });
-
-      // Welcome Notification (first time)
-      const welcomeNotif = existingNotifs.find(n => n.type === "welcome" && n.userId === user.id);
-      if (!welcomeNotif && user.createdAt && new Date(user.createdAt).toDateString() === new Date().toDateString()) {
-        newNotifications.push({
-          id: Date.now() + 800,
-          userId: user.id,
-          type: "welcome",
-          title: "🎉 Welcome to PharmaMed!",
-          message: "Thank you for joining us. Start shopping for medicines!",
-          icon: "Package",
-          color: "purple",
-          read: false,
-          createdAt: new Date().toISOString()
-        });
-      }
     }
 
     // Save new notifications
@@ -268,9 +233,7 @@ export default function NotificationSystem() {
 
   const markAsRead = (notifId) => {
     const allNotifs = JSON.parse(localStorage.getItem("notifications") || "[]");
-    const updated = allNotifs.map(n => 
-      n.id === notifId ? { ...n, read: true } : n
-    );
+    const updated = allNotifs.map(n => n.id === notifId ? { ...n, read: true } : n);
     localStorage.setItem("notifications", JSON.stringify(updated));
     setNotifications(notifications.map(n => n.id === notifId ? { ...n, read: true } : n));
     setUnreadCount(prev => Math.max(0, prev - 1));
@@ -278,27 +241,17 @@ export default function NotificationSystem() {
 
   const markAllAsRead = () => {
     const allNotifs = JSON.parse(localStorage.getItem("notifications") || "[]");
-    const updated = allNotifs.map(n => 
-      n.userId === user.id ? { ...n, read: true } : n
-    );
+    const updated = allNotifs.map(n => n.userId === user.id ? { ...n, read: true } : n);
     localStorage.setItem("notifications", JSON.stringify(updated));
     setNotifications(notifications.map(n => ({ ...n, read: true })));
     setUnreadCount(0);
-  };
-
-  const clearNotification = (notifId) => {
-    const allNotifs = JSON.parse(localStorage.getItem("notifications") || "[]");
-    const updated = allNotifs.filter(n => n.id !== notifId);
-    localStorage.setItem("notifications", JSON.stringify(updated));
-    setNotifications(notifications.filter(n => n.id !== notifId));
-    setUnreadCount(prev => notifications.find(n => n.id === notifId && !n.read) ? prev - 1 : prev);
   };
 
   const getIcon = (iconName) => {
     switch(iconName) {
       case "AlertTriangle": return <AlertTriangle className="w-5 h-5" />;
       case "Package": return <Package className="w-5 h-5" />;
-      case "UserCheck": return <UserCheck className="w-5 h-5" />;
+      case "UserCheck": return <Users className="w-5 h-5" />;
       case "ShoppingCart": return <ShoppingCart className="w-5 h-5" />;
       case "Truck": return <Truck className="w-5 h-5" />;
       case "CheckCircle": return <CheckCircle className="w-5 h-5" />;
@@ -316,6 +269,10 @@ export default function NotificationSystem() {
       default: return "bg-gray-100 text-gray-700";
     }
   };
+
+  if (user?.role === "Admin" && notifications.filter(n => n.type === "low_stock" || n.type === "expiry" || n.type === "new_supplier").length === 0 && unreadCount === 0) {
+    // Admin has no notifications
+  }
 
   return (
     <div className="relative">
@@ -367,7 +324,11 @@ export default function NotificationSystem() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              clearNotification(notif.id);
+                              const allNotifs = JSON.parse(localStorage.getItem("notifications") || "[]");
+                              const updated = allNotifs.filter(n => n.id !== notif.id);
+                              localStorage.setItem("notifications", JSON.stringify(updated));
+                              setNotifications(notifications.filter(n => n.id !== notif.id));
+                              setUnreadCount(prev => notif.read ? prev : prev - 1);
                             }}
                             className="text-gray-400 hover:text-gray-600"
                           >
@@ -384,6 +345,12 @@ export default function NotificationSystem() {
                 ))
               )}
             </div>
+            
+            <Link href="/dashboard/notifications" onClick={() => setShowDropdown(false)}>
+              <div className="p-2 text-center text-sm text-blue-600 hover:bg-gray-50 transition border-t border-gray-100">
+                View All Notifications
+              </div>
+            </Link>
           </div>
         </>
       )}
