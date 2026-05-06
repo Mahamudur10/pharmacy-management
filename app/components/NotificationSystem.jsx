@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Package, AlertTriangle, UserCheck, ShoppingCart, X, CheckCircle } from "lucide-react";
+import { Bell, Package, AlertTriangle, UserCheck, ShoppingCart, Truck, CheckCircle, X } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
-export default function NotificationSystem({ user }) {
+export default function NotificationSystem() {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -12,128 +14,284 @@ export default function NotificationSystem({ user }) {
     if (!user) return;
     loadNotifications();
     
-    // Check for updates every 30 seconds
-    const interval = setInterval(() => {
-      checkForNewNotifications();
-    }, 30000);
-    
+    const interval = setInterval(loadNotifications, 30000);
     return () => clearInterval(interval);
   }, [user]);
 
   const loadNotifications = () => {
-    const stored = JSON.parse(localStorage.getItem("notifications") || "[]");
-    // Filter notifications for current user
-    const userNotifs = stored.filter(n => n.userId === user.id || n.forAll === true);
-    setNotifications(userNotifs);
-    setUnreadCount(userNotifs.filter(n => !n.read).length);
-  };
-
-  const checkForNewNotifications = () => {
     const medicines = JSON.parse(localStorage.getItem("medicines") || "[]");
     const users = JSON.parse(localStorage.getItem("users") || "[]");
     const sales = JSON.parse(localStorage.getItem("sales") || "[]");
+    const supplierOrders = JSON.parse(localStorage.getItem("supplierOrders") || "[]");
+    const customerPurchases = JSON.parse(localStorage.getItem("customerPurchases") || "[]");
     const existingNotifs = JSON.parse(localStorage.getItem("notifications") || "[]");
     
-    const newNotifications = [];
+    let newNotifications = [];
 
-    // 1. Low Stock Alerts
-    medicines.forEach(med => {
-      if (med.quantity < 20) {
-        const existing = existingNotifs.find(n => n.type === "low_stock" && n.medicineId === med.id);
-        if (!existing || existing.status !== "active") {
-          newNotifications.push({
-            id: Date.now() + med.id,
-            userId: user.id,
-            forAll: true,
-            type: "low_stock",
-            title: "⚠️ Low Stock Alert",
-            message: `${med.name} has only ${med.quantity} units left in stock!`,
-            medicineId: med.id,
-            status: "active",
-            read: false,
-            createdAt: new Date().toISOString(),
-            icon: "AlertTriangle",
-            color: "yellow"
-          });
+    // ========== ADMIN NOTIFICATIONS ==========
+    if (user?.role === "Admin") {
+      // Low Stock Alerts
+      medicines.forEach(med => {
+        if (med.quantity < 20) {
+          const existing = existingNotifs.find(n => n.type === "low_stock" && n.medicineId === med.id && n.userId === user.id);
+          if (!existing) {
+            newNotifications.push({
+              id: Date.now() + med.id,
+              userId: user.id,
+              type: "low_stock",
+              title: "⚠️ Low Stock Alert",
+              message: `${med.name} has only ${med.quantity} units left!`,
+              icon: "AlertTriangle",
+              color: "yellow",
+              read: false,
+              createdAt: new Date().toISOString()
+            });
+          }
         }
-      }
-    });
+      });
 
-    // 2. Expiry Alerts (within 60 days)
-    medicines.forEach(med => {
-      const daysLeft = Math.ceil((new Date(med.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-      if (daysLeft <= 60 && daysLeft > 0) {
-        const existing = existingNotifs.find(n => n.type === "expiry" && n.medicineId === med.id);
-        if (!existing || existing.status !== "active") {
-          newNotifications.push({
-            id: Date.now() + med.id + 100,
-            userId: user.id,
-            forAll: true,
-            type: "expiry",
-            title: "📅 Expiry Alert",
-            message: `${med.name} will expire in ${daysLeft} days!`,
-            medicineId: med.id,
-            daysLeft: daysLeft,
-            status: "active",
-            read: false,
-            createdAt: new Date().toISOString(),
-            icon: "Package",
-            color: "red"
-          });
+      // Expiry Alerts
+      medicines.forEach(med => {
+        const daysLeft = Math.ceil((new Date(med.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+        if (daysLeft <= 60 && daysLeft > 0) {
+          const existing = existingNotifs.find(n => n.type === "expiry" && n.medicineId === med.id && n.userId === user.id);
+          if (!existing) {
+            newNotifications.push({
+              id: Date.now() + med.id + 100,
+              userId: user.id,
+              type: "expiry",
+              title: "📅 Expiring Soon",
+              message: `${med.name} will expire in ${daysLeft} days!`,
+              icon: "Package",
+              color: "red",
+              read: false,
+              createdAt: new Date().toISOString()
+            });
+          }
         }
-      }
-    });
+      });
 
-    // 3. Pending Suppliers (for Admin only)
-    if (user.role === "Admin") {
+      // New Supplier Registration
       const pendingSuppliers = users.filter(u => u.role === "Supplier" && u.status === "pending");
       pendingSuppliers.forEach(sup => {
-        const existing = existingNotifs.find(n => n.type === "pending_supplier" && n.supplierId === sup.id);
+        const existing = existingNotifs.find(n => n.type === "new_supplier" && n.userId === sup.id && n.userId === user.id);
         if (!existing) {
           newNotifications.push({
-            id: Date.now() + sup.id,
+            id: Date.now() + sup.id + 200,
             userId: user.id,
-            forAll: false,
-            type: "pending_supplier",
-            title: "👤 New Supplier Request",
-            message: `${sup.name} (${sup.email}) has requested to join as a supplier.`,
-            supplierId: sup.id,
-            status: "active",
-            read: false,
-            createdAt: new Date().toISOString(),
+            type: "new_supplier",
+            title: "👤 New Supplier Registration",
+            message: `${sup.name} (${sup.email}) has requested to join.`,
             icon: "UserCheck",
-            color: "purple"
+            color: "purple",
+            read: false,
+            createdAt: new Date().toISOString()
+          });
+        }
+      });
+
+      // Daily Sales Summary
+      const todaySales = sales.filter(s => new Date(s.date).toDateString() === new Date().toDateString());
+      if (todaySales.length > 0) {
+        const totalToday = todaySales.reduce((sum, s) => sum + (s.total || 0), 0);
+        const existing = existingNotifs.find(n => n.type === "daily_sales" && 
+          new Date(n.createdAt).toDateString() === new Date().toDateString() && n.userId === user.id);
+        if (!existing) {
+          newNotifications.push({
+            id: Date.now() + 300,
+            userId: user.id,
+            type: "daily_sales",
+            title: "💰 Daily Sales Summary",
+            message: `${todaySales.length} transactions today. Total: TK ${totalToday.toFixed(2)}`,
+            icon: "ShoppingCart",
+            color: "green",
+            read: false,
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    // ========== PHARMACIST NOTIFICATIONS ==========
+    if (user?.role === "Pharmacist") {
+      // Low Stock Alerts
+      medicines.forEach(med => {
+        if (med.quantity < 20) {
+          const existing = existingNotifs.find(n => n.type === "low_stock" && n.medicineId === med.id && n.userId === user.id);
+          if (!existing) {
+            newNotifications.push({
+              id: Date.now() + med.id,
+              userId: user.id,
+              type: "low_stock",
+              title: "⚠️ Low Stock Alert",
+              message: `${med.name} has only ${med.quantity} units left!`,
+              icon: "AlertTriangle",
+              color: "yellow",
+              read: false,
+              createdAt: new Date().toISOString()
+            });
+          }
+        }
+      });
+
+      // Expiry Alerts
+      medicines.forEach(med => {
+        const daysLeft = Math.ceil((new Date(med.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+        if (daysLeft <= 60 && daysLeft > 0) {
+          const existing = existingNotifs.find(n => n.type === "expiry" && n.medicineId === med.id && n.userId === user.id);
+          if (!existing) {
+            newNotifications.push({
+              id: Date.now() + med.id + 100,
+              userId: user.id,
+              type: "expiry",
+              title: "📅 Expiring Soon",
+              message: `${med.name} will expire in ${daysLeft} days!`,
+              icon: "Package",
+              color: "red",
+              read: false,
+              createdAt: new Date().toISOString()
+            });
+          }
+        }
+      });
+    }
+
+    // ========== SUPPLIER NOTIFICATIONS ==========
+    if (user?.role === "Supplier") {
+      // New Orders
+      const newOrders = supplierOrders.filter(o => o.status === "Pending");
+      newOrders.forEach(order => {
+        const existing = existingNotifs.find(n => n.type === "new_order" && n.orderId === order.id && n.userId === user.id);
+        if (!existing) {
+          newNotifications.push({
+            id: Date.now() + order.id + 400,
+            userId: user.id,
+            type: "new_order",
+            title: "🆕 New Order Received",
+            message: `Order ${order.orderId} for ${order.medicineName} (${order.quantity} units)`,
+            icon: "Truck",
+            color: "blue",
+            read: false,
+            createdAt: new Date().toISOString()
+          });
+        }
+      });
+
+      // Order Status Updates
+      const shippedOrders = supplierOrders.filter(o => o.status === "Shipped");
+      shippedOrders.forEach(order => {
+        const existing = existingNotifs.find(n => n.type === "order_shipped" && n.orderId === order.id && n.userId === user.id);
+        if (!existing) {
+          newNotifications.push({
+            id: Date.now() + order.id + 500,
+            userId: user.id,
+            type: "order_shipped",
+            title: "🚚 Order Shipped",
+            message: `Order ${order.orderId} has been shipped.`,
+            icon: "Truck",
+            color: "blue",
+            read: false,
+            createdAt: new Date().toISOString()
+          });
+        }
+      });
+
+      const deliveredOrders = supplierOrders.filter(o => o.status === "Delivered");
+      deliveredOrders.forEach(order => {
+        const existing = existingNotifs.find(n => n.type === "order_delivered" && n.orderId === order.id && n.userId === user.id);
+        if (!existing) {
+          newNotifications.push({
+            id: Date.now() + order.id + 600,
+            userId: user.id,
+            type: "order_delivered",
+            title: "✅ Order Delivered",
+            message: `Order ${order.orderId} has been delivered successfully.`,
+            icon: "CheckCircle",
+            color: "green",
+            read: false,
+            createdAt: new Date().toISOString()
           });
         }
       });
     }
 
-    // Add new notifications
+    // ========== CUSTOMER NOTIFICATIONS ==========
+    if (user?.role === "Customer") {
+      // Order Confirmation
+      const recentPurchases = customerPurchases.filter(p => 
+        p.customerName === user.name && new Date(p.date).toDateString() === new Date().toDateString()
+      );
+      recentPurchases.forEach(purchase => {
+        const existing = existingNotifs.find(n => n.type === "order_confirmation" && n.orderId === purchase.id && n.userId === user.id);
+        if (!existing) {
+          newNotifications.push({
+            id: Date.now() + purchase.id + 700,
+            userId: user.id,
+            type: "order_confirmation",
+            title: "✅ Order Confirmed",
+            message: `Your order ${purchase.invoiceNo} has been confirmed. Total: TK ${purchase.total.toFixed(2)}`,
+            icon: "ShoppingCart",
+            color: "green",
+            read: false,
+            createdAt: new Date().toISOString()
+          });
+        }
+      });
+
+      // Welcome Notification (first time)
+      const welcomeNotif = existingNotifs.find(n => n.type === "welcome" && n.userId === user.id);
+      if (!welcomeNotif && user.createdAt && new Date(user.createdAt).toDateString() === new Date().toDateString()) {
+        newNotifications.push({
+          id: Date.now() + 800,
+          userId: user.id,
+          type: "welcome",
+          title: "🎉 Welcome to PharmaMed!",
+          message: "Thank you for joining us. Start shopping for medicines!",
+          icon: "Package",
+          color: "purple",
+          read: false,
+          createdAt: new Date().toISOString()
+        });
+      }
+    }
+
+    // Save new notifications
     if (newNotifications.length > 0) {
       const updated = [...existingNotifs, ...newNotifications];
       localStorage.setItem("notifications", JSON.stringify(updated));
-      loadNotifications();
     }
+    
+    const userNotifs = existingNotifs.filter(n => n.userId === user.id);
+    setNotifications(userNotifs);
+    setUnreadCount(userNotifs.filter(n => !n.read).length);
   };
 
   const markAsRead = (notifId) => {
-    const updated = notifications.map(n => 
+    const allNotifs = JSON.parse(localStorage.getItem("notifications") || "[]");
+    const updated = allNotifs.map(n => 
       n.id === notifId ? { ...n, read: true } : n
     );
     localStorage.setItem("notifications", JSON.stringify(updated));
-    loadNotifications();
+    setNotifications(notifications.map(n => n.id === notifId ? { ...n, read: true } : n));
+    setUnreadCount(prev => Math.max(0, prev - 1));
   };
 
   const markAllAsRead = () => {
-    const updated = notifications.map(n => ({ ...n, read: true }));
+    const allNotifs = JSON.parse(localStorage.getItem("notifications") || "[]");
+    const updated = allNotifs.map(n => 
+      n.userId === user.id ? { ...n, read: true } : n
+    );
     localStorage.setItem("notifications", JSON.stringify(updated));
-    loadNotifications();
+    setNotifications(notifications.map(n => ({ ...n, read: true })));
+    setUnreadCount(0);
   };
 
   const clearNotification = (notifId) => {
-    const updated = notifications.filter(n => n.id !== notifId);
+    const allNotifs = JSON.parse(localStorage.getItem("notifications") || "[]");
+    const updated = allNotifs.filter(n => n.id !== notifId);
     localStorage.setItem("notifications", JSON.stringify(updated));
-    loadNotifications();
+    setNotifications(notifications.filter(n => n.id !== notifId));
+    setUnreadCount(prev => notifications.find(n => n.id === notifId && !n.read) ? prev - 1 : prev);
   };
 
   const getIcon = (iconName) => {
@@ -142,28 +300,30 @@ export default function NotificationSystem({ user }) {
       case "Package": return <Package className="w-5 h-5" />;
       case "UserCheck": return <UserCheck className="w-5 h-5" />;
       case "ShoppingCart": return <ShoppingCart className="w-5 h-5" />;
+      case "Truck": return <Truck className="w-5 h-5" />;
+      case "CheckCircle": return <CheckCircle className="w-5 h-5" />;
       default: return <Bell className="w-5 h-5" />;
     }
   };
 
   const getColorClass = (color) => {
     switch(color) {
-      case "yellow": return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200";
-      case "red": return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200";
-      case "purple": return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200";
-      case "green": return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200";
-      default: return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200";
+      case "yellow": return "bg-amber-100 text-amber-700";
+      case "red": return "bg-red-100 text-red-700";
+      case "purple": return "bg-purple-100 text-purple-700";
+      case "green": return "bg-emerald-100 text-emerald-700";
+      case "blue": return "bg-blue-100 text-blue-700";
+      default: return "bg-gray-100 text-gray-700";
     }
   };
 
   return (
     <div className="relative">
-      {/* Bell Icon with Badge */}
       <button
         onClick={() => setShowDropdown(!showDropdown)}
-        className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+        className="relative p-2 rounded-lg hover:bg-gray-100 transition"
       >
-        <Bell className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+        <Bell className="w-5 h-5 text-gray-600" />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
             {unreadCount > 9 ? "9+" : unreadCount}
@@ -171,81 +331,61 @@ export default function NotificationSystem({ user }) {
         )}
       </button>
 
-      {/* Dropdown */}
       {showDropdown && (
-        <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
-          {/* Header */}
-          <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
-            <h3 className="font-semibold text-gray-800 dark:text-white">Notifications</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="text-xs text-blue-600 hover:text-blue-700"
-              >
-                Mark all as read
-              </button>
-            )}
-          </div>
-
-          {/* Notifications List */}
-          <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="text-center py-8">
-                <Bell className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-500">No notifications yet</p>
-                <p className="text-xs text-gray-400 mt-1">New alerts will appear here</p>
-              </div>
-            ) : (
-              notifications.map(notif => (
-                <div
-                  key={notif.id}
-                  className={`p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition cursor-pointer ${!notif.read ? "bg-blue-50 dark:bg-blue-900/20" : ""}`}
-                  onClick={() => markAsRead(notif.id)}
-                >
-                  <div className="flex gap-3">
-                    <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${getColorClass(notif.color)}`}>
-                      {getIcon(notif.icon)}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <p className="font-semibold text-sm text-gray-800 dark:text-white">{notif.title}</p>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            clearNotification(notif.id);
-                          }}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          <X size={14} />
-                        </button>
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowDropdown(false)} />
+          <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-800">Notifications</h3>
+              {unreadCount > 0 && (
+                <button onClick={markAllAsRead} className="text-xs text-blue-600 hover:text-blue-700">
+                  Mark all as read
+                </button>
+              )}
+            </div>
+            
+            <div className="max-h-96 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="text-center py-8">
+                  <Bell className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No notifications</p>
+                </div>
+              ) : (
+                notifications.map((notif) => (
+                  <div
+                    key={notif.id}
+                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer ${!notif.read ? "bg-blue-50" : ""}`}
+                    onClick={() => markAsRead(notif.id)}
+                  >
+                    <div className="flex gap-3">
+                      <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${getColorClass(notif.color)}`}>
+                        {getIcon(notif.icon)}
                       </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{notif.message}</p>
-                      <p className="text-xs text-gray-400 mt-2">
-                        {new Date(notif.createdAt).toLocaleTimeString()} - {new Date(notif.createdAt).toLocaleDateString()}
-                      </p>
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <p className="font-semibold text-sm text-gray-800">{notif.title}</p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              clearNotification(notif.id);
+                            }}
+                            className="text-gray-400 hover:text-gray-600"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">{notif.message}</p>
+                        <p className="text-xs text-gray-400 mt-2">
+                          {new Date(notif.createdAt).toLocaleTimeString()} - {new Date(notif.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div className="p-3 bg-gray-50 dark:bg-gray-900/50 text-center border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => {
-                  const updated = notifications.filter(n => n.type !== "low_stock" && n.type !== "expiry");
-                  localStorage.setItem("notifications", JSON.stringify(updated));
-                  loadNotifications();
-                }}
-                className="text-xs text-gray-500 hover:text-gray-700"
-              >
-                Clear all old notifications
-              </button>
+                ))
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
