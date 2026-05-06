@@ -8,6 +8,7 @@ const client = new MongoClient(uri);
 export async function POST(req) {
   try {
     const { email, password } = await req.json();
+    
     await client.connect();
     const db = client.db('pharmacy_db');
     const users = db.collection('users');
@@ -23,7 +24,7 @@ export async function POST(req) {
     }
     
     const token = jwt.sign(
-      { id: user._id, role: user.role },
+      { id: user._id.toString(), role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -34,10 +35,13 @@ export async function POST(req) {
         id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role
+        role: user.role,
+        status: user.status
       }
     });
   } catch (err) {
     return Response.json({ message: err.message }, { status: 500 });
+  } finally {
+    await client.close();
   }
 }
