@@ -4,7 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../context/AuthContext";
-import { Pill, UserPlus, Shield, Stethoscope, Truck, ShoppingBag, CheckCircle } from "lucide-react";
+import { 
+  Pill, UserPlus, Shield, Stethoscope, Truck, ShoppingBag, 
+  CheckCircle, AlertCircle, Eye, EyeOff, Mail, Lock, User, 
+  Calendar, Award, Sparkles, Heart, Activity
+} from "lucide-react";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -15,6 +19,8 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const router = useRouter();
   const { signup } = useAuth();
 
@@ -37,13 +43,9 @@ export default function SignupPage() {
     }
 
     try {
-      const result = await signup(name, email, password, role);
-      if (result === false && role === "Supplier") {
-        setSuccess("Registration successful! Please wait for admin approval.");
-        setTimeout(() => router.push("/login"), 3000);
-      } else if (result !== false) {
-        router.push("/dashboard");
-      }
+      await signup(name, email, password, role);
+      setSuccess("Account created successfully! Please login.");
+      setTimeout(() => router.push("/login"), 2000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -74,7 +76,7 @@ export default function SignupPage() {
               
               <div className="mb-8">
                 <h1 className="text-4xl font-bold mb-4">Join Us! 🚀</h1>
-                <p className="text-white/80 text-lg">Create your account and start managing pharmacy operations.</p>
+                <p className="text-white/80 text-lg">Create your account to get started.</p>
               </div>
               
               <div className="space-y-4">
@@ -106,158 +108,195 @@ export default function SignupPage() {
           </div>
 
           {/* Right Side - Signup Form */}
-          <div className="md:w-1/2 p-8 lg:p-12">
-            <div className="text-center mb-8">
-              <div className="md:hidden flex justify-center mb-4">
-                <div className="bg-gradient-to-br from-green-600 to-teal-600 p-3 rounded-2xl">
-                  <Pill className="w-10 h-10 text-white" />
-                </div>
-              </div>
-              <h2 className="text-3xl font-bold text-gray-800">Create Account</h2>
-              <p className="text-gray-500 mt-2">Register to get started</p>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center gap-2">
-                <div className="w-1 h-full bg-red-500 rounded"></div>
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-4 flex items-center gap-2">
-                <CheckCircle className="w-5 h-5" />
-                {success}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-gray-700 text-sm font-semibold mb-2">Full Name</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
+          <div className="md:w-1/2 p-8 lg:p-12 bg-white dark:bg-gray-900">
+            <div className="max-w-md mx-auto">
+              <div className="text-center mb-8">
+                <div className="md:hidden flex justify-center mb-4">
+                  <div className="bg-gradient-to-r from-green-500 to-teal-500 p-3 rounded-2xl">
+                    <Pill className="w-10 h-10 text-white" />
                   </div>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
-                    placeholder="John Doe"
-                    required
-                  />
                 </div>
+                <h2 className="text-3xl font-bold text-gray-800 dark:text-white">Create Account</h2>
+                <p className="text-gray-500 dark:text-gray-400 mt-2">Register to get started</p>
               </div>
 
-              <div>
-                <label className="block text-gray-700 text-sm font-semibold mb-2">Email Address</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                    </svg>
+              {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-xl mb-6 flex items-center gap-2">
+                  <div className="w-1 h-8 bg-red-500 rounded-full"></div>
+                  <AlertCircle size={18} />
+                  {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 px-4 py-3 rounded-xl mb-6 flex items-center gap-2">
+                  <CheckCircle size={18} />
+                  {success}
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Name Field */}
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 text-sm font-semibold mb-2">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <User className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 dark:bg-gray-800 transition text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      placeholder="Enter your full name"
+                      required
+                    />
                   </div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
-                    placeholder="john@example.com"
-                    required
-                  />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-gray-700 text-sm font-semibold mb-2">Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
+                {/* Email Field */}
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 text-sm font-semibold mb-2">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 dark:bg-gray-800 transition text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      placeholder="Enter your email"
+                      required
+                    />
                   </div>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
-                    placeholder="••••••••"
-                    required
-                  />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">Minimum 6 characters</p>
-              </div>
 
-              <div>
-                <label className="block text-gray-700 text-sm font-semibold mb-2">Confirm Password</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
-                  </div>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full pl-10 pr-3 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"
-                    placeholder="••••••••"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 text-sm font-semibold mb-2">Register as</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {roles.filter(r => !r.restricted).map((r) => (
+                {/* Password Field with Show/Hide */}
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 text-sm font-semibold mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Lock className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full pl-10 pr-12 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 dark:bg-gray-800 transition text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      placeholder="Create a password"
+                      required
+                    />
                     <button
-                      key={r.id}
                       type="button"
-                      onClick={() => setRole(r.id)}
-                      className={`p-3 rounded-xl border-2 transition-all ${
-                        role === r.id 
-                          ? `border-${r.color}-500 bg-${r.color}-50` 
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
                     >
-                      <div className="flex items-center gap-2">
-                        <r.icon className={`w-5 h-5 ${role === r.id ? `text-${r.color}-600` : "text-gray-500"}`} />
-                        <div className="text-left">
-                          <p className={`font-semibold text-sm ${role === r.id ? `text-${r.color}-600` : "text-gray-700"}`}>
-                            {r.id}
-                          </p>
-                          <p className="text-xs text-gray-400">{r.desc}</p>
-                        </div>
-                      </div>
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition" />
+                      ) : (
+                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600 transition" />
+                      )}
                     </button>
-                  ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Minimum 6 characters</p>
                 </div>
-                {role === "Supplier" && (
-                  <p className="text-xs text-orange-600 mt-2 flex items-center gap-1">
-                    <Truck className="w-3 h-3" /> Supplier accounts require admin approval
-                  </p>
-                )}
-              </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-gradient-to-r from-green-600 to-teal-600 text-white py-3 rounded-xl hover:from-green-700 hover:to-teal-700 transition font-semibold mt-4 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <UserPlus className="w-5 h-5" />
-                {loading ? "Creating account..." : "Sign Up →"}
-              </button>
-            </form>
+                {/* Confirm Password Field with Show/Hide */}
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 text-sm font-semibold mb-2">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Lock className="h-5 w-5 text-gray-400" />
+                    </div>
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full pl-10 pr-12 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 dark:bg-gray-800 transition text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      placeholder="Confirm your password"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition" />
+                      ) : (
+                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600 transition" />
+                      )}
+                    </button>
+                  </div>
+                </div>
 
-            <p className="text-center text-gray-600 mt-6 md:hidden">
-              Already have an account?{" "}
-              <Link href="/login" className="text-green-600 font-semibold">
-                Login
-              </Link>
-            </p>
+                {/* Role Selection */}
+                <div>
+                  <label className="block text-gray-700 dark:text-gray-300 text-sm font-semibold mb-2">
+                    Register as
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {roles.filter(r => !r.restricted).map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setRole(r.id)}
+                        className={`p-3 rounded-xl border-2 transition-all ${
+                          role === r.id 
+                            ? `border-${r.color}-500 bg-${r.color}-50 dark:bg-${r.color}-900/20` 
+                            : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <r.icon className={`w-5 h-5 ${role === r.id ? `text-${r.color}-600` : "text-gray-500"}`} />
+                          <div className="text-left">
+                            <p className={`font-semibold text-sm ${role === r.id ? `text-${r.color}-600` : "text-gray-700 dark:text-gray-300"}`}>
+                              {r.id}
+                            </p>
+                            <p className="text-xs text-gray-400">{r.desc}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  {role === "Supplier" && (
+                    <p className="text-xs text-orange-600 mt-2 flex items-center gap-1">
+                      <Truck className="w-3 h-3" /> Supplier accounts require admin approval
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-gradient-to-r from-green-600 to-teal-600 text-white py-3 rounded-xl hover:from-green-700 hover:to-teal-700 transition font-semibold mt-4 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+                >
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <UserPlus className="w-5 h-5" /> Sign Up
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <p className="text-center text-gray-500 dark:text-gray-400 mt-6 text-sm md:hidden">
+                Already have an account?{" "}
+                <Link href="/login" className="text-green-600 font-semibold hover:underline">
+                  Login
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
       </div>

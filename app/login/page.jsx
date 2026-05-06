@@ -7,7 +7,8 @@ import { useAuth } from "../context/AuthContext";
 import { 
   Pill, Mail, Lock, ArrowRight, 
   Shield, Stethoscope, Truck, ShoppingBag,
-  Sparkles, Heart, Activity
+  Sparkles, Heart, Activity, Eye, EyeOff,
+  Fingerprint, AlertCircle
 } from "lucide-react";
 
 export default function LoginPage() {
@@ -15,6 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
 
@@ -65,7 +67,7 @@ export default function LoginPage() {
               </div>
               
               <div className="mb-10">
-                <h1 className="text-4xl lg:text-5xl font-bold mb-4">
+                <h1 className="text-4xl lg:text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                   Welcome Back! 👋
                 </h1>
                 <p className="text-white/70 text-lg leading-relaxed">
@@ -75,8 +77,8 @@ export default function LoginPage() {
 
               {/* Features */}
               <div className="space-y-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                <div className="flex items-center gap-3 group cursor-pointer">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
                     <Activity className="w-5 h-5 text-green-400" />
                   </div>
                   <div>
@@ -84,8 +86,8 @@ export default function LoginPage() {
                     <p className="text-xs text-white/50">Track sales & inventory</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                <div className="flex items-center gap-3 group cursor-pointer">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
                     <Heart className="w-5 h-5 text-red-400" />
                   </div>
                   <div>
@@ -93,8 +95,8 @@ export default function LoginPage() {
                     <p className="text-xs text-white/50">Manage prescriptions</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                <div className="flex items-center gap-3 group cursor-pointer">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
                     <Sparkles className="w-5 h-5 text-yellow-400" />
                   </div>
                   <div>
@@ -105,9 +107,12 @@ export default function LoginPage() {
               </div>
 
               <div className="mt-12 pt-8 border-t border-white/10">
-                <p className="text-xs text-white/30 text-center">
-                  🔒 Secure & Encrypted | 24/7 Support
-                </p>
+                <div className="flex items-center justify-center gap-2">
+                  <Fingerprint className="w-4 h-4 text-white/40" />
+                  <p className="text-xs text-white/30 text-center">
+                    🔒 Secure & Encrypted | 24/7 Support
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -127,6 +132,7 @@ export default function LoginPage() {
                 {error && (
                   <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-xl mb-6 flex items-center gap-2">
                     <div className="w-1 h-8 bg-red-500 rounded-full"></div>
+                    <AlertCircle size={18} />
                     {error}
                   </div>
                 )}
@@ -144,7 +150,7 @@ export default function LoginPage() {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 dark:bg-gray-800 transition"
+                        className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 dark:bg-gray-800 transition text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
                         placeholder="your@email.com"
                         required
                       />
@@ -160,20 +166,31 @@ export default function LoginPage() {
                         <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition" />
                       </div>
                       <input
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 dark:bg-gray-800 transition"
-                        placeholder="••••••••"
+                        className="w-full pl-10 pr-12 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 dark:bg-gray-800 transition text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                        placeholder="Enter your password"
                         required
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600 transition" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 transition font-semibold disabled:opacity-50 mt-6 flex items-center justify-center gap-2 shadow-lg"
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 transition font-semibold disabled:opacity-50 mt-6 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
                   >
                     {loading ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
@@ -185,7 +202,7 @@ export default function LoginPage() {
                   </button>
                 </form>
 
-                {/* Demo Credentials Reference */}
+                {/* Demo Credentials - শুধু তথ্য দেখানোর জন্য (ক্লিক করা যাবে না) */}
                 <div className="mt-8">
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center">
@@ -202,7 +219,7 @@ export default function LoginPage() {
                       return (
                         <div
                           key={demo.role}
-                          className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2 text-center border border-gray-100 dark:border-gray-700"
+                          className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2 text-center border border-gray-100 dark:border-gray-700 cursor-default"
                         >
                           <div className="flex items-center justify-center gap-1 mb-1">
                             <Icon className={`w-3 h-3 text-${demo.color}-500`} />
@@ -214,13 +231,13 @@ export default function LoginPage() {
                     })}
                   </div>
                   <p className="text-center text-[10px] text-gray-400 mt-3">
-                    Use above credentials to test the system
+                    Use these credentials to login manually
                   </p>
                 </div>
 
                 <p className="text-center text-gray-500 dark:text-gray-400 mt-6 text-sm">
                   Don't have an account?{" "}
-                  <Link href="/signup" className="text-blue-600 hover:text-blue-700 font-semibold">
+                  <Link href="/signup" className="text-blue-600 hover:text-blue-700 font-semibold hover:underline transition">
                     Create Account
                   </Link>
                 </p>

@@ -10,7 +10,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="bn" suppressHydrationWarning>
-      <body className="bg-gray-50 dark:bg-gray-950 transition-colors duration-200">
+      <body className="bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300">
         <ThemeProvider>
           <AuthProvider>
             {children}
